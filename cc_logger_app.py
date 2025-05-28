@@ -40,6 +40,7 @@ st.markdown("**(A)-1**   **2**   **3**   **4-(B)**")
 
 # Display editable table with dropdowns and comment field only
 edited_df = st.data_editor(
+    # Disable sorting and make dropdowns open in one tap
     st.session_state.df,
     column_config={
         "(A)-1": st.column_config.SelectboxColumn("(A)-1", options=options),
@@ -51,7 +52,10 @@ edited_df = st.data_editor(
     use_container_width=True,
     num_rows="fixed",
     hide_index=True,
-    disabled=["CC#"]
+    column_order=["CC#", "(A)-1", "2", "3", "4-(B)", "COMMENTS"],
+    disabled=["CC#"],
+    key="editor_no_sort",
+    sort_by=None
 )
 
 # GitHub secrets
