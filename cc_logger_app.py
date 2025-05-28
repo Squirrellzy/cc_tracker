@@ -6,12 +6,27 @@ from io import BytesIO
 import base64
 import requests
 from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 st.set_page_config(page_title="CC Tracker – Indy", layout="wide")
 
+# Simple login system
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Login Required")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username == "maint" and password == "mars":
+            st.session_state.authenticated = True
+            st.experimental_rerun()
+        else:
+            st.error("Incorrect username or password.")
+    st.stop()
+
+# Main App starts after login
 options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
 cc_list = [f"CC{i}" for i in range(1, 78)]
 
@@ -21,7 +36,8 @@ if "form_data" not in st.session_state:
 st.title("Collection Conveyor Tracker – Indy")
 
 for cc in cc_list:
-    with st.expander(cc):
+    with st.container():
+        st.subheader(cc)
         col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 3])
         with col1:
             a1 = st.selectbox("(A)-1", options, key=f"{cc}-a1")
@@ -43,7 +59,7 @@ GITHUB_FILE = "CC Inspection Indy.xlsx"
 
 def auto_format_worksheet(ws):
     tab = Table(displayName="InspectionLog", ref=ws.dimensions)
-    style = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
+    style = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
     tab.tableStyleInfo = style
     ws.add_table(tab)
     for col in ws.columns:
@@ -81,14 +97,14 @@ def save_and_upload():
         book = load_workbook(file)
     else:
         from openpyxl import Workbook
-        book = Workbook(); book.remove(book.active)
+        book = Workbook()
+        book.remove(book.active)
     if today in book.sheetnames:
         del book[today]
     ws = book.create_sheet(title=today)
     ws.append(["CC#", "(A)-1", "2", "3", "4-(B)", "COMMENTS"])
     for cc in cc_list:
-        row = [cc] + st.session_state.form_data[cc]
-        ws.append(row)
+        ws.append([cc] + st.session_state.form_data[cc])
     auto_format_worksheet(ws)
     book.save(buf)
     buf.seek(0)
@@ -103,5 +119,9 @@ if st.button("Save to GitHub"):
         st.error(f"❌ Failed to upload: {resp.json()}")
         st.session_state.download_buffer = None
 
-if "download_buffer" in st.session_state and st.session_state.download_buffer:
-    st.download_button("📥 Download This Version", st.session_state.download_buffer, file_name="CC Inspection Indy.xlsx")
+# Always visible download
+if "download_buffer" not in st.session_state:
+    _, out_buf = save_and_upload()
+    st.session_state.download_buffer = out_buf
+
+st.download_button("📥 Download Current Workbook", st.session_state.download_buffer, file_name="CC Inspection Indy.xlsx")
