@@ -2,10 +2,13 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
+from io import BytesIO
 import base64
 import requests
-from io import BytesIO
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 # Dropdown options
 options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
@@ -22,9 +25,8 @@ if "df" not in st.session_state:
         "COMMENTS": ["" for _ in cc_list],
     })
 
-st.title("Collection Conveyor Tracker")
+st.title("Collection Conveyor Tracker – Indy")
 
-# Form grid
 edited_df = st.session_state.df.copy()
 for i, cc in enumerate(cc_list):
     col1, col2, col3, col4, col5, col6 = st.columns([1.2, 1, 1, 1, 1, 2])
@@ -40,44 +42,75 @@ GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO_OWNER = st.secrets["REPO_OWNER"]
 REPO_NAME = st.secrets["REPO_NAME"]
 
-def push_to_github(df, filename):
-    # Create Excel file in memory
-    excel_buffer = BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name="Log")
-    excel_content = excel_buffer.getvalue()
-    b64_content = base64.b64encode(excel_content).decode()
+GITHUB_FILE = "CC Inspection Indy.xlsx"
 
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{filename}"
+def auto_format_worksheet(ws, df):
+    # Apply table formatting and column width auto-sizing
+    tab = Table(displayName="InspectionLog", ref=ws.dimensions)
+    style = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
+    tab.tableStyleInfo = style
+    ws.add_table(tab)
+    for col in ws.columns:
+        max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = max_length + 2
 
-    # Check if file exists
+def get_github_file():
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{GITHUB_FILE}"
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
-    get_resp = requests.get(url, headers=headers)
-    if get_resp.status_code == 200:
-        sha = get_resp.json()["sha"]
-    else:
-        sha = None
+    resp = requests.get(url, headers=headers)
+    if resp.status_code == 200:
+        content = base64.b64decode(resp.json()["content"])
+        sha = resp.json()["sha"]
+        return BytesIO(content), sha
+    return None, None
 
+def push_to_github(updated_buffer, sha=None):
+    b64_content = base64.b64encode(updated_buffer.getvalue()).decode()
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{GITHUB_FILE}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
     payload = {
-        "message": f"Update log for {filename}",
+        "message": f"Update sheet for {datetime.now().date()}",
         "content": b64_content,
         "branch": "main"
     }
     if sha:
         payload["sha"] = sha
+    response = requests.put(url, headers=headers, json=payload)
+    return response.status_code, response.json()
 
-    resp = requests.put(url, headers=headers, json=payload)
-    return resp.status_code, resp.json()
+def save_and_upload_to_github(df):
+    today = datetime.now().strftime("%Y-%m-%d")
+    buffer = BytesIO()
+    existing_file, sha = get_github_file()
 
-# Save to GitHub button
-if st.button("Save and Push to GitHub"):
-    today_file = f"CC_Log_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
-    status, response = push_to_github(edited_df, today_file)
-
-    if status in [200, 201]:
-        st.success(f"✅ Successfully pushed {today_file} to GitHub.")
+    if existing_file:
+        book = load_workbook(existing_file)
     else:
-        st.error(f"❌ Failed to push file. {response}")
+        from openpyxl import Workbook
+        book = Workbook()
+        book.remove(book.active)
+
+    if today in book.sheetnames:
+        del book[today]
+    sheet = book.create_sheet(title=today)
+    for r in dataframe_to_rows(df, index=False, header=True):
+        sheet.append(r)
+    auto_format_worksheet(sheet, df)
+    book.save(buffer)
+    buffer.seek(0)
+    return push_to_github(buffer, sha), buffer
+
+# GitHub Push Button
+if st.button("Save to GitHub"):
+    (status, response), out_buffer = save_and_upload_to_github(edited_df)
+    if status in [200, 201]:
+        st.success("✅ Workbook updated on GitHub!")
+        st.download_button("📥 Download This Version", out_buffer, file_name="CC Inspection Indy.xlsx")
+    else:
+        st.error(f"❌ Failed to upload: {response}")
