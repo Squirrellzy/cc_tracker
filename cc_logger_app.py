@@ -8,21 +8,13 @@ from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="CC Tracker – Indy", layout="wide")
 
-# Style
-st.markdown("""
-    <style>
-    .title-wrapper { text-align: center; margin-bottom: 2rem; }
-    </style>
-""", unsafe_allow_html=True)
-
-# Dropdown options
 options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
 cc_list = [f"CC{i}" for i in range(1, 78)]
 
-# Initialize session state
 if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame({
         "CC#": cc_list,
@@ -34,27 +26,27 @@ if "df" not in st.session_state:
     })
 
 st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>", unsafe_allow_html=True)
-st.markdown("**(A)-1**   **2**   **3**   **4-(B)**")
 
-# Table display
-edited_df = st.data_editor(
+# AG-GRID SETUP
+gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
+gb.configure_columns(["(A)-1", "2", "3", "4-(B)"], editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": options}, sortable=False)
+gb.configure_column("COMMENTS", editable=True, sortable=False)
+gb.configure_column("CC#", editable=False, sortable=False)
+gb.configure_grid_options(domLayout='normal')
+
+grid_options = gb.build()
+grid_response = AgGrid(
     st.session_state.df,
-    column_config={
-        "(A)-1": st.column_config.SelectboxColumn("(A)-1", options=options),
-        "2": st.column_config.SelectboxColumn("2", options=options),
-        "3": st.column_config.SelectboxColumn("3", options=options),
-        "4-(B)": st.column_config.SelectboxColumn("4-(B)", options=options),
-        "COMMENTS": st.column_config.TextColumn("COMMENTS")
-    },
-    use_container_width=True,
-    num_rows="fixed",
-    hide_index=True,
-    column_order=["CC#", "(A)-1", "2", "3", "4-(B)", "COMMENTS"],
-    disabled=["CC#"],
-    key="editor_no_sort"
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.VALUE_CHANGED,
+    fit_columns_on_grid_load=True,
+    height=750,
+    allow_unsafe_jscode=True,
+    enable_enterprise_modules=False
 )
+edited_df = grid_response['data']
 
-# GitHub Config
+# GitHub secrets
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO_OWNER = st.secrets["REPO_OWNER"]
 REPO_NAME = st.secrets["REPO_NAME"]
