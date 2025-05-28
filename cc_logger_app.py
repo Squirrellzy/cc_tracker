@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -9,6 +8,35 @@ from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
+
+st.set_page_config(page_title="CC Tracker – Indy", layout="wide")
+
+# Apply custom style
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    .css-1v0mbdj, .css-1r6slb0, .stButton, .stTextInput, .stSelectbox {
+        font-size: 16px !important;
+    }
+    .title-wrapper {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .stSelectbox > div[data-baseweb="select"] {
+        background-color: #f0f2f6;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+    }
+    .stTextInput > div > input {
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Dropdown options
 options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
@@ -25,23 +53,24 @@ if "df" not in st.session_state:
         "COMMENTS": ["" for _ in cc_list],
     })
 
-st.title("Collection Conveyor Tracker – Indy")
+st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>", unsafe_allow_html=True)
 
 edited_df = st.session_state.df.copy()
-for i, cc in enumerate(cc_list):
-    col1, col2, col3, col4, col5, col6 = st.columns([1.2, 1, 1, 1, 1, 2])
-    col1.write(cc)
-    edited_df.at[i, "(A)-1"] = col2.selectbox("", options, index=options.index(edited_df.at[i, "(A)-1"]), key=f"{cc}_b")
-    edited_df.at[i, "2"] = col3.selectbox("", options, index=options.index(edited_df.at[i, "2"]), key=f"{cc}_c")
-    edited_df.at[i, "3"] = col4.selectbox("", options, index=options.index(edited_df.at[i, "3"]), key=f"{cc}_d")
-    edited_df.at[i, "4-(B)"] = col5.selectbox("", options, index=options.index(edited_df.at[i, "4-(B)"]), key=f"{cc}_e")
-    edited_df.at[i, "COMMENTS"] = col6.text_input("", value=edited_df.at[i, "COMMENTS"], key=f"{cc}_f")
+
+with st.container():
+    for i, cc in enumerate(cc_list):
+        col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1, 1, 1, 1, 2.5])
+        col1.markdown(f"<div style='padding-top:0.5rem'><strong>{cc}</strong></div>", unsafe_allow_html=True)
+        edited_df.at[i, "(A)-1"] = col2.selectbox(" ", options, index=options.index(edited_df.at[i, "(A)-1"]), key=f"{cc}_b")
+        edited_df.at[i, "2"] = col3.selectbox(" ", options, index=options.index(edited_df.at[i, "2"]), key=f"{cc}_c")
+        edited_df.at[i, "3"] = col4.selectbox(" ", options, index=options.index(edited_df.at[i, "3"]), key=f"{cc}_d")
+        edited_df.at[i, "4-(B)"] = col5.selectbox(" ", options, index=options.index(edited_df.at[i, "4-(B)"]), key=f"{cc}_e")
+        edited_df.at[i, "COMMENTS"] = col6.text_input(" ", value=edited_df.at[i, "COMMENTS"], key=f"{cc}_f")
 
 # GitHub credentials
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO_OWNER = st.secrets["REPO_OWNER"]
 REPO_NAME = st.secrets["REPO_NAME"]
-
 GITHUB_FILE = "CC Inspection Indy.xlsx"
 
 def auto_format_worksheet(ws, df):
@@ -105,7 +134,6 @@ def save_and_upload_to_github(df):
     buffer.seek(0)
     return push_to_github(buffer, sha), buffer
 
-# GitHub Push Button
 if st.button("Save to GitHub"):
     (status, response), out_buffer = save_and_upload_to_github(edited_df)
     if status in [200, 201]:
@@ -115,7 +143,6 @@ if st.button("Save to GitHub"):
         st.error(f"❌ Failed to upload: {response}")
         st.session_state["download_buffer"] = None
 
-# Persistent download button
 if "download_buffer" in st.session_state and st.session_state["download_buffer"]:
     st.download_button(
         label="📥 Download This Version",
