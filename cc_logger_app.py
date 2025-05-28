@@ -21,7 +21,8 @@ if "form_data" not in st.session_state:
 st.title("Collection Conveyor Tracker – Indy")
 
 for cc in cc_list:
-    with st.expander(cc):
+        with st.container():
+        st.subheader(cc)
         col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 3])
         with col1:
             a1 = st.selectbox("(A)-1", options, key=f"{cc}-a1")
