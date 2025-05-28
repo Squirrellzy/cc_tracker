@@ -29,7 +29,8 @@ st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>
 
 # AG-GRID SETUP
 gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
-gb.configure_columns(["(A)-1", "2", "3", "4-(B)"], editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": options}, sortable=False)
+gb.configure_column("(A)-1", editable=True, cellEditorSelector={"function": "params => ({ component: 'agSelectCellEditor', params: { values: ['Tracked', 'Needs Tracked', 'Pulley Noise', 'Inspected'] } })"}, sortable=False)
+gb.configure_columns(["2", "3", "4-(B)"], editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": options}, sortable=False)
 gb.configure_column("COMMENTS", editable=True, sortable=False)
 gb.configure_column("CC#", editable=False, sortable=False)
 gb.configure_grid_options(domLayout='normal')
