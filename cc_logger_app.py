@@ -16,13 +16,12 @@ options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
 cc_list = [f"CC{i}" for i in range(1, 78)]
 
 if "form_data" not in st.session_state:
-        st.session_state.form_data = {}
+    st.session_state.form_data = {}
 
 st.title("Collection Conveyor Tracker – Indy")
 
 for cc in cc_list:
-    with st.container():
-        st.subheader(cc)
+    with st.expander(cc):
         col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 3])
         with col1:
             a1 = st.selectbox("(A)-1", options, key=f"{cc}-a1")
