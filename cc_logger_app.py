@@ -45,7 +45,6 @@ REPO_NAME = st.secrets["REPO_NAME"]
 GITHUB_FILE = "CC Inspection Indy.xlsx"
 
 def auto_format_worksheet(ws, df):
-    # Apply table formatting and column width auto-sizing
     tab = Table(displayName="InspectionLog", ref=ws.dimensions)
     style = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
     tab.tableStyleInfo = style
@@ -111,6 +110,15 @@ if st.button("Save to GitHub"):
     (status, response), out_buffer = save_and_upload_to_github(edited_df)
     if status in [200, 201]:
         st.success("✅ Workbook updated on GitHub!")
-        st.download_button("📥 Download This Version", out_buffer, file_name="CC Inspection Indy.xlsx")
+        st.session_state["download_buffer"] = out_buffer
     else:
         st.error(f"❌ Failed to upload: {response}")
+        st.session_state["download_buffer"] = None
+
+# Persistent download button
+if "download_buffer" in st.session_state and st.session_state["download_buffer"]:
+    st.download_button(
+        label="📥 Download This Version",
+        data=st.session_state["download_buffer"],
+        file_name="CC Inspection Indy.xlsx"
+    )
