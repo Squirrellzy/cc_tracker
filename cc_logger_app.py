@@ -42,7 +42,8 @@ grid_response = AgGrid(
     fit_columns_on_grid_load=True,
     height=750,
     allow_unsafe_jscode=True,
-    enable_enterprise_modules=False
+    enable_enterprise_modules=False,
+    singleClickEdit=True
 )
 edited_df = grid_response['data']
 
