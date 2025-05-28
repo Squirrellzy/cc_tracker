@@ -11,30 +11,10 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 st.set_page_config(page_title="CC Tracker – Indy", layout="wide")
 
-# Apply custom style
+# Style
 st.markdown("""
     <style>
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    .css-1v0mbdj, .css-1r6slb0, .stButton, .stTextInput, .stSelectbox {
-        font-size: 16px !important;
-    }
-    .title-wrapper {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .stSelectbox > div[data-baseweb="select"] {
-        background-color: #f0f2f6;
-        border-radius: 8px;
-        border: 1px solid #ccc;
-    }
-    .stTextInput > div > input {
-        background-color: #f9f9f9;
-        border-radius: 8px;
-        border: 1px solid #ccc;
-    }
+    .title-wrapper { text-align: center; margin-bottom: 2rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -55,39 +35,39 @@ if "df" not in st.session_state:
 
 st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>", unsafe_allow_html=True)
 
-edited_df = st.session_state.df.copy()
+# Display editable table
+edited_df = st.data_editor(
+    st.session_state.df,
+    column_config={
+        "(A)-1": st.column_config.SelectboxColumn("(A)-1", options=options),
+        "2": st.column_config.SelectboxColumn("2", options=options),
+        "3": st.column_config.SelectboxColumn("3", options=options),
+        "4-(B)": st.column_config.SelectboxColumn("4-(B)", options=options),
+        "COMMENTS": st.column_config.TextColumn("COMMENTS")
+    },
+    use_container_width=True,
+    num_rows="fixed",
+    hide_index=True,
+)
 
-with st.container():
-    for i, cc in enumerate(cc_list):
-        col1, col2, col3, col4, col5, col6 = st.columns([1.5, 1, 1, 1, 1, 2.5])
-        col1.markdown(f"<div style='padding-top:0.5rem'><strong>{cc}</strong></div>", unsafe_allow_html=True)
-        edited_df.at[i, "(A)-1"] = col2.selectbox(" ", options, index=options.index(edited_df.at[i, "(A)-1"]), key=f"{cc}_b")
-        edited_df.at[i, "2"] = col3.selectbox(" ", options, index=options.index(edited_df.at[i, "2"]), key=f"{cc}_c")
-        edited_df.at[i, "3"] = col4.selectbox(" ", options, index=options.index(edited_df.at[i, "3"]), key=f"{cc}_d")
-        edited_df.at[i, "4-(B)"] = col5.selectbox(" ", options, index=options.index(edited_df.at[i, "4-(B)"]), key=f"{cc}_e")
-        edited_df.at[i, "COMMENTS"] = col6.text_input(" ", value=edited_df.at[i, "COMMENTS"], key=f"{cc}_f")
-
-# GitHub credentials
+# GitHub secrets
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 REPO_OWNER = st.secrets["REPO_OWNER"]
 REPO_NAME = st.secrets["REPO_NAME"]
 GITHUB_FILE = "CC Inspection Indy.xlsx"
 
-def auto_format_worksheet(ws, df):
+def auto_format_worksheet(ws):
     tab = Table(displayName="InspectionLog", ref=ws.dimensions)
     style = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
     tab.tableStyleInfo = style
     ws.add_table(tab)
     for col in ws.columns:
-        max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = max_length + 2
+        max_len = max(len(str(c.value)) if c.value else 0 for c in col)
+        ws.column_dimensions[col[0].column_letter].width = max_len + 2
 
 def get_github_file():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{GITHUB_FILE}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json"
-    }
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
     resp = requests.get(url, headers=headers)
     if resp.status_code == 200:
         content = base64.b64decode(resp.json()["content"])
@@ -95,57 +75,45 @@ def get_github_file():
         return BytesIO(content), sha
     return None, None
 
-def push_to_github(updated_buffer, sha=None):
-    b64_content = base64.b64encode(updated_buffer.getvalue()).decode()
+def push_to_github(buf, sha=None):
+    b64 = base64.b64encode(buf.getvalue()).decode()
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{GITHUB_FILE}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json"
-    }
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
     payload = {
         "message": f"Update sheet for {datetime.now().date()}",
-        "content": b64_content,
+        "content": b64,
         "branch": "main"
     }
-    if sha:
-        payload["sha"] = sha
-    response = requests.put(url, headers=headers, json=payload)
-    return response.status_code, response.json()
+    if sha: payload["sha"] = sha
+    return requests.put(url, headers=headers, json=payload)
 
-def save_and_upload_to_github(df):
+def save_and_upload(df):
     today = datetime.now().strftime("%Y-%m-%d")
-    buffer = BytesIO()
-    existing_file, sha = get_github_file()
-
-    if existing_file:
-        book = load_workbook(existing_file)
+    buf = BytesIO()
+    file, sha = get_github_file()
+    if file:
+        book = load_workbook(file)
     else:
         from openpyxl import Workbook
-        book = Workbook()
-        book.remove(book.active)
-
+        book = Workbook(); book.remove(book.active)
     if today in book.sheetnames:
         del book[today]
-    sheet = book.create_sheet(title=today)
-    for r in dataframe_to_rows(df, index=False, header=True):
-        sheet.append(r)
-    auto_format_worksheet(sheet, df)
-    book.save(buffer)
-    buffer.seek(0)
-    return push_to_github(buffer, sha), buffer
+    ws = book.create_sheet(title=today)
+    for row in dataframe_to_rows(df, index=False, header=True):
+        ws.append(row)
+    auto_format_worksheet(ws)
+    book.save(buf)
+    buf.seek(0)
+    return push_to_github(buf, sha), buf
 
 if st.button("Save to GitHub"):
-    (status, response), out_buffer = save_and_upload_to_github(edited_df)
-    if status in [200, 201]:
+    (resp, out_buf) = save_and_upload(edited_df)
+    if resp.status_code in [200, 201]:
         st.success("✅ Workbook updated on GitHub!")
-        st.session_state["download_buffer"] = out_buffer
+        st.session_state["download_buffer"] = out_buf
     else:
-        st.error(f"❌ Failed to upload: {response}")
+        st.error(f"❌ Failed to upload: {resp.json()}")
         st.session_state["download_buffer"] = None
 
 if "download_buffer" in st.session_state and st.session_state["download_buffer"]:
-    st.download_button(
-        label="📥 Download This Version",
-        data=st.session_state["download_buffer"],
-        file_name="CC Inspection Indy.xlsx"
-    )
+    st.download_button("📥 Download This Version", st.session_state["download_buffer"], file_name="CC Inspection Indy.xlsx")
