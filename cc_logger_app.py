@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -8,44 +9,31 @@ from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Font
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="CC Tracker – Indy", layout="wide")
 
 options = ["", "Tracked", "Needs Tracked", "Pulley Noise", "Inspected"]
 cc_list = [f"CC{i}" for i in range(1, 78)]
 
-if "df" not in st.session_state:
-    st.session_state.df = pd.DataFrame({
-        "CC#": cc_list,
-        "(A)-1": ["" for _ in cc_list],
-        "2": ["" for _ in cc_list],
-        "3": ["" for _ in cc_list],
-        "4-(B)": ["" for _ in cc_list],
-        "COMMENTS": ["" for _ in cc_list],
-    })
+if "form_data" not in st.session_state:
+    st.session_state.form_data = {}
 
-st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>", unsafe_allow_html=True)
+st.title("Collection Conveyor Tracker – Indy")
 
-# AG-GRID SETUP
-gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
-gb.configure_columns(["(A)-1", "2", "3", "4-(B)"], editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": options}, sortable=False)
-gb.configure_column("COMMENTS", editable=True, sortable=False)
-gb.configure_column("CC#", editable=False, sortable=False)
-gb.configure_grid_options(domLayout='normal')
-
-grid_options = gb.build()
-grid_response = AgGrid(
-    st.session_state.df,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.VALUE_CHANGED,
-    fit_columns_on_grid_load=True,
-    height=750,
-    allow_unsafe_jscode=True,
-    enable_enterprise_modules=False,
-    singleClickEdit=True
-)
-edited_df = grid_response['data']
+for cc in cc_list:
+    with st.expander(cc):
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 3])
+        with col1:
+            a1 = st.selectbox("(A)-1", options, key=f"{cc}-a1")
+        with col2:
+            b2 = st.selectbox("2", options, key=f"{cc}-2")
+        with col3:
+            b3 = st.selectbox("3", options, key=f"{cc}-3")
+        with col4:
+            b4 = st.selectbox("4-(B)", options, key=f"{cc}-4")
+        with col5:
+            comment = st.text_input("COMMENTS", key=f"{cc}-comment")
+        st.session_state.form_data[cc] = [a1, b2, b3, b4, comment]
 
 # GitHub secrets
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -81,10 +69,11 @@ def push_to_github(buf, sha=None):
         "content": b64,
         "branch": "main"
     }
-    if sha: payload["sha"] = sha
+    if sha:
+        payload["sha"] = sha
     return requests.put(url, headers=headers, json=payload)
 
-def save_and_upload(df):
+def save_and_upload():
     today = datetime.now().strftime("%Y-%m-%d")
     buf = BytesIO()
     file, sha = get_github_file()
@@ -96,7 +85,9 @@ def save_and_upload(df):
     if today in book.sheetnames:
         del book[today]
     ws = book.create_sheet(title=today)
-    for row in dataframe_to_rows(df, index=False, header=True):
+    ws.append(["CC#", "(A)-1", "2", "3", "4-(B)", "COMMENTS"])
+    for cc in cc_list:
+        row = [cc] + st.session_state.form_data[cc]
         ws.append(row)
     auto_format_worksheet(ws)
     book.save(buf)
@@ -104,13 +95,13 @@ def save_and_upload(df):
     return push_to_github(buf, sha), buf
 
 if st.button("Save to GitHub"):
-    (resp, out_buf) = save_and_upload(edited_df)
+    resp, out_buf = save_and_upload()
     if resp.status_code in [200, 201]:
         st.success("✅ Workbook updated on GitHub!")
-        st.session_state["download_buffer"] = out_buf
+        st.session_state.download_buffer = out_buf
     else:
         st.error(f"❌ Failed to upload: {resp.json()}")
-        st.session_state["download_buffer"] = None
+        st.session_state.download_buffer = None
 
-if "download_buffer" in st.session_state and st.session_state["download_buffer"]:
-    st.download_button("📥 Download This Version", st.session_state["download_buffer"], file_name="CC Inspection Indy.xlsx")
+if "download_buffer" in st.session_state and st.session_state.download_buffer:
+    st.download_button("📥 Download This Version", st.session_state.download_buffer, file_name="CC Inspection Indy.xlsx")
