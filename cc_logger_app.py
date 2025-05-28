@@ -35,6 +35,9 @@ if "df" not in st.session_state:
 
 st.markdown("<h2 class='title-wrapper'>Collection Conveyor Tracker – Indy</h2>", unsafe_allow_html=True)
 
+# Add labels for dropdown columns
+st.markdown("**(A)-1**   **2**   **3**   **4-(B)**")
+
 # Display editable table
 edited_df = st.data_editor(
     st.session_state.df,
