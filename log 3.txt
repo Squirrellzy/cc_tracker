@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "cc_logger_lan_only.py", line 2, in <module>
+  File "PyInstaller\loader\pyimod02_importers.py", line 450, in exec_module
+  File "streamlit\__init__.py", line 63, in <module>
+  File "PyInstaller\loader\pyimod02_importers.py", line 450, in exec_module
+  File "streamlit\version.py", line 18, in <module>
+  File "importlib\metadata\__init__.py", line 987, in version
+  File "importlib\metadata\__init__.py", line 960, in distribution
+  File "importlib\metadata\__init__.py", line 409, in from_name
+importlib.metadata.PackageNotFoundError: No package metadata was found for streamlit
+[PYI-59132:ERROR] Failed to execute script 'cc_logger_lan_only' due to unhandled exception!
+
+C:\Users\USPS\Desktop>
